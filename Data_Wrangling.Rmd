@@ -1,0 +1,156 @@
+---
+title: "Data_Wrangling"
+author: "Mike"
+date: "2025-04-22"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(fuzzyjoin)
+```
+
+## Data Processing
+### Converting the data to long form which may be easier lookups and transformations
+
+```{r}
+filenames <- list.files("Datasets/NTS Data") # get file names
+
+# read data
+combined_tables <- lapply(filenames, function(file) {
+  read.csv(paste0("Datasets/NTS Data/",file), fileEncoding = "ISO-8859-1")  
+})
+
+#replcace names
+combined_tables <- setNames(combined_tables, gsub("\\.csv$", "", filenames))
+
+```
+
+### Current state of the data 
+
+```{r}
+head(combined_tables[[1]])
+```
+
+### Vs what we want to get to
+
+```{r}
+## Vs what we want to get to
+combined_tables[[1]] %>%
+  pivot_longer(cols = !c("Player", "Team", "Position", "season", "rate", "stdoi", "sit"),
+               names_to = "stat",
+               values_to = "value")
+```
+
+### Lets get there
+
+```{r}
+combined_tables_long <- list()
+for (name in names(combined_tables)) {
+  long_df <- combined_tables[[name]] %>%
+  pivot_longer(cols = !c("Player", "Team", "Position", "season", "rate", "stdoi", "sit"),
+               names_to = "stat",
+               values_to = "value")
+  
+   combined_tables_long[[name]] <- long_df
+}
+
+rm(long_df)
+
+all_data_long <- bind_rows(combined_tables_long)
+
+rm(combined_tables_long)
+
+#write.csv(all_data_long, file = "Datasets/all_data_long.csv", row.names = FALSE, fileEncoding = "ISO-8859-1")
+```
+
+### Getting player IDs onto the natural stat trick data
+
+```{r}
+skaters_by_season <- read.csv("Datasets/skaterdata.csv", fileEncoding = "ISO-8859-1")
+
+## List of skaters from natural stat trick data
+skaters <- all_data_long %>%
+  select(Player, Team, Position, season) %>%
+  distinct(Player, Position, season, .keep_all = TRUE)
+```
+
+```{r}
+skaters_duplicates <- skaters %>%
+  group_by(Player, season) %>%
+  summarise(n = n()) %>%
+  filter(n > 1)
+
+print(skaters_duplicates)
+## Need to worry about Sebastian Ahos and Elias Pettersons
+```
+
+
+```{r}
+## List of skaters from NHL API
+nhl_skater_names <- skaters_by_season %>%
+  select("Player" = "skaterFullName", playerId, "Position" = "positionCode") %>%
+  group_by(Player, playerId) %>%
+  distinct() %>%
+  ungroup()
+
+## Fuzzy matching because the names are not 1:1. this will save some time 
+fuzzyjoin_player <- stringdist_left_join(
+  skaters, nhl_skater_names,
+  by = "Player", 
+  method = "jw",  
+  max_dist = 0.33,  
+  distance_col = "dist") 
+```
+
+```{r}
+## running the antti join until it returns zero. Trying to get the fuzzy match to try for everyone
+fuzzyanti_join <- fuzzyjoin_player %>%
+  filter(is.na(playerId))
+
+head(fuzzyanti_join)
+```
+
+```{r}
+## only showing the best match for each player
+fuzzyjoin_df <- fuzzyjoin_player %>% 
+  group_by(Player.x, Position.x) %>%
+  slice_min(order_by = dist, with_ties = FALSE) %>%
+  ungroup() 
+  
+head(fuzzyjoin_df %>%
+       arrange(desc(dist)))
+
+#write.csv(fuzzyjoin_df, file = "fuzzyjoin.csv", row.names = FALSE, fileEncoding = "ISO-8859-1")
+
+```
+
+## Make edits directly in the file to quality check the fuzzy matches
+
+```{r}
+#rm(fuzzyjoin_df)
+#rm(fuzzyjoin_player)
+#rm(fuzzyanti_join)
+
+combo_player_wids <- read.csv(file = "fuzzyjoin.csv", fileEncoding = "ISO-8859-1")
+
+nts_player_wids <- combo_player_wids %>%
+  select("Player" = "Player.x", Team, "Position" = "Position.x", playerId)
+
+nhl_player_wids <- combo_player_wids %>%
+  select("Player" = "Player.y", Team, "Position" = "Position.y", playerId)
+
+combo_player_wids <- rbind(nts_player_wids, nhl_player_wids) %>%
+  distinct()
+
+#write.csv(combo_player_wids, "playeridindex.csv", row.names = FALSE, fileEncoding = "ISO-8859-1")
+
+#rm(nts_player_wids)
+#rm(nhl_player_wids)
+#rm(combo_player_wids)
+
+```
