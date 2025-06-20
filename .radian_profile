@@ -1,0 +1,2 @@
+options(radian.auto_match = FALSE,
+radian.auto_indentation = FALSE)
