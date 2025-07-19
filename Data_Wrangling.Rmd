@@ -12,6 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyverse)
 library(fuzzyjoin)
+library(here)
+
+setwd(dirname(here()))
 ```
 
 ## Data Processing
@@ -152,5 +155,12 @@ combo_player_wids <- rbind(nts_player_wids, nhl_player_wids) %>%
 #rm(nts_player_wids)
 #rm(nhl_player_wids)
 #rm(combo_player_wids)
+
+```
+
+```{r}
+long_data <- read.csv(file = "Datasets/all_data_long.csv",
+                      fileEncoding = "ISO-8859-1")
+
 
 ```
