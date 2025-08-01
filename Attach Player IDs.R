@@ -14,7 +14,7 @@ skaters_by_season <- read.csv("Datasets/skaterdata.csv", fileEncoding = "ISO-885
 ## List of skaters from natural stat trick data
 skaters <- alldata_wide %>%
   select(Player, Team, Position, season) %>%
-  distinct(Player, Position, season, .keep_all = TRUE)
+  distinct()
 
 
 
@@ -31,7 +31,7 @@ print(skaters_duplicates)
 
 ## List of skaters from NHL API
 nhl_skater_names <- skaters_by_season %>%
-  select("Player" = "skaterFullName", playerId, "Position" = "positionCode") %>%
+  select("Player" = "skaterFullName", playerId, "Position" = "positionCode", "Team" = "teamAbbrevs") %>%
   group_by(Player, playerId) %>%
   distinct() %>%
   ungroup()
@@ -63,7 +63,7 @@ fuzzyjoin_df <- fuzzyjoin_player %>%
 head(fuzzyjoin_df %>%
        arrange(desc(dist)))
 
-#write.csv(fuzzyjoin_df, file = "fuzzyjoin.csv", row.names = FALSE, fileEncoding = "ISO-8859-1")
+write.csv(fuzzyjoin_df, file = "Datasets/fuzzyjoin.csv", row.names = FALSE, fileEncoding = "ISO-8859-1")
 
 
 
